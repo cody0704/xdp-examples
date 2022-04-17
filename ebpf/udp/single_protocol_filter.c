@@ -14,9 +14,6 @@
 
 static volatile unsigned const short PORT;
 
-static volatile unsigned const char PROTO;
-static volatile unsigned const char PROTO = IPPROTO_ICMP;
-
 //Ensure map references are available.
 /*
         These will be initiated from go and 
@@ -56,7 +53,7 @@ SEC("xdp_sock") int xdp_sock_prog(struct xdp_md *ctx)
 				
 				if ((void*)ip + sizeof(*ip) <= data_end) {
 					// Only UDP
-					if (ip->protocol == PROTO) {
+					if (ip->protocol == IPPROTO_UDP) {
 						struct udphdr *udp = (void*)ip + sizeof(*ip);
 						if ((void*)udp + sizeof(*udp) <= data_end) {
 							if (udp->dest == bpf_htons(PORT)) {
