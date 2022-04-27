@@ -12,7 +12,7 @@ import (
 //go:generate /root/go/bin/bpf2go ipproto single_protocol_filter.c -- -I/usr/include/ -I./include -nostdinc -O3
 
 // NewIPProtoProgram returns an new eBPF that directs packets of the given ip protocol to to XDP sockets
-func NewIPPortProgram(dest uint32, options *ebpf.CollectionOptions) (*xdp.Program, error) {
+func NewUDPPortProgram(dest uint32, options *ebpf.CollectionOptions) (*xdp.Program, error) {
 	spec, err := loadIpproto()
 	if err != nil {
 		return nil, err

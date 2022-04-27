@@ -39,3 +39,15 @@ go run main.go -linkname lo -port 6000
 ```bash
 echo "Hello XDP" > /dev/udp/localhost/6000
 ```
+
+## XDP Mode
+
+```bash
+$ ip link
+```
+
+ens19: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 `xdp` qdisc fq_codel state UP mode DEFAULT group default qlen 1000
+
+* Native
+* Offload
+* Generic
