@@ -2,147 +2,111 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
-	"syscall"
-
-	"github.com/cody0704/xdp-examples/ebpf/udp"
-
-	"github.com/asavie/xdp"
+	"runtime"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
-// go:generate echo helloworld
+const (
+	flushInterval = time.Duration(1) * time.Second
+	maxQueueSize  = 1000000
+	UDPPacketSize = 1500
+)
 
-var limits = make(chan []byte, 10000)
+var address string
+var bufferPool sync.Pool
+var ops uint64 = 0
+var total uint64 = 0
+var flushTicker *time.Ticker
+var nbWorkers int
 
-func udpprocess() {
-	for pktData := range limits {
-		// PAYLOAD
+func init() {
+	flag.StringVar(&address, "addr", ":8181", "Address of the UDP server to test")
+	flag.IntVar(&nbWorkers, "concurrency", runtime.NumCPU(), "Number of workers to run in parallel")
+}
 
-		log.Print(
-			"SrcIP: ", net.IP(pktData[26:30]).String(), ", SrcPort: ", int(pktData[34])*256+int(pktData[35]),
-			", DstIP: ", net.IP(pktData[30:34]).String(), ", DstPort: ", int(pktData[36])*256+int(pktData[37]),
-			", Data: ", string(pktData[42:]),
-		)
+type message struct {
+	addr   net.Addr
+	msg    []byte
+	length int
+}
+
+type messageQueue chan message
+
+func (mq messageQueue) enqueue(m message) {
+	mq <- m
+}
+
+func (mq messageQueue) dequeue() {
+	for m := range mq {
+		handleMessage(m.addr, m.msg[0:m.length])
+		bufferPool.Put(m.msg)
 	}
 }
 
+var mq messageQueue
+
 func main() {
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
-
-	var linkName string
-	var queueID int
-	var port int64
-
-	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
-
-	flag.StringVar(&linkName, "linkname", "", "The network link on which rebroadcast should run on.")
-	flag.IntVar(&queueID, "queueid", 0, "The ID of the Rx queue to which to attach to on the network link.")
-	flag.Int64Var(&port, "port", 0, "Port Number")
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	flag.Parse()
 
-	interfaces, err := net.Interfaces()
-	if err != nil {
-		fmt.Printf("error: failed to fetch the list of network interfaces on the system: %v\n", err)
-		return
+	bufferPool = sync.Pool{
+		New: func() interface{} { return make([]byte, UDPPacketSize) },
 	}
+	mq = make(messageQueue, maxQueueSize)
+	listenAndReceive(nbWorkers)
 
-	Ifindex := -1
-	for _, iface := range interfaces {
-		if iface.Name == linkName {
-			Ifindex = iface.Index
-			break
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	go func() {
+		for range c {
+			atomic.AddUint64(&total, ops)
+			log.Printf("Total ops %d", total)
+			os.Exit(0)
 		}
-	}
-	if Ifindex == -1 {
-		fmt.Printf("error: couldn't find a suitable network interface to attach to\n")
-		return
-	}
+	}()
 
-	var program *xdp.Program
-
-	if port < 0 || port > 65565 {
-		log.Panic("Out of Port")
+	flushTicker = time.NewTicker(flushInterval)
+	for range flushTicker.C {
+		log.Printf("Ops/s %f", float64(ops)/flushInterval.Seconds())
+		atomic.AddUint64(&total, ops)
+		atomic.StoreUint64(&ops, 0)
 	}
+}
 
-	// Create a new XDP eBPF program and attach it to our chosen network link.
-	program, err = udp.NewIPPortProgram(uint32(port), nil)
+func listenAndReceive(maxWorkers int) error {
+	c, err := net.ListenPacket("udp", address)
 	if err != nil {
-		fmt.Printf("error: failed to create xdp program: %v\n", err)
-		return
+		return err
 	}
-	defer program.Close()
-	if err := program.Attach(Ifindex); err != nil {
-		fmt.Printf("error: failed to attach xdp program to interface: %v\n", err)
-		return
+	for i := 0; i < maxWorkers; i++ {
+		go mq.dequeue()
+		go receive(c)
 	}
-	defer program.Detach(Ifindex)
+	return nil
+}
 
-	// Create and initialize an XDP socket attached to our chosen network
-	// link.
-	xsk, err := xdp.NewSocket(Ifindex, queueID, &xdp.SocketOptions{
-		NumFrames:              204800,
-		FrameSize:              4096,
-		FillRingNumDescs:       8192,
-		CompletionRingNumDescs: 64,
-		RxRingNumDescs:         8192,
-		TxRingNumDescs:         64,
-	})
-	if err != nil {
-		fmt.Printf("error: failed to create an XDP socket: %v\n", err)
-		return
-	}
+// receive accepts incoming datagrams on c and calls handleMessage() for each message
+func receive(c net.PacketConn) {
+	defer c.Close()
 
-	// Register our XDP socket file descriptor with the eBPF program so it can be redirected packets
-	if err := program.Register(queueID, xsk.FD()); err != nil {
-		fmt.Printf("error: failed to register socket in BPF map: %v\n", err)
-		return
-	}
-	defer program.Unregister(queueID)
-
-	go udpprocess()
-
-	log.Println("Start UDP Server: linkname:", linkName, "Port:", port)
-XDP:
 	for {
-		select {
-		case <-sigChan:
-			break XDP
-		default:
-			// If there are any free slots on the Fill queue...
-			if n := xsk.NumFreeFillSlots(); n > 0 {
-				// ...then fetch up to that number of not-in-use
-				// descriptors and push them onto the Fill ring queue
-				// for the kernel to fill them with the received
-				// frames.
-				xsk.Fill(xsk.GetDescs(n))
-			}
-			// Wait for receive - meaning the kernel has
-			// produced one or more descriptors filled with a received
-			// frame onto the Rx ring queue.
-			// log.Printf("waiting for frame(s) to be received...")
-			numRx, _, err := xsk.Poll(1)
-			if err != nil {
-				fmt.Printf("error: %v\n", err)
-				return
-			}
-
-			if numRx > 0 {
-				// Consume the descriptors filled with received frames
-				// from the Rx ring queue.
-				rxDescs := xsk.Receive(numRx)
-				// Print the received frames and also modify them
-				// in-place replacing the destination MAC address with
-				// broadcast address.
-				for i := 0; i < len(rxDescs); i++ {
-					pktData := xsk.GetFrame(rxDescs[i])
-					limits <- pktData
-				}
-			}
+		msg := bufferPool.Get().([]byte)
+		nbytes, addr, err := c.ReadFrom(msg[0:])
+		if err != nil {
+			log.Printf("Error %s", err)
+			continue
 		}
+		mq.enqueue(message{addr, msg, nbytes})
 	}
+}
+
+func handleMessage(addr net.Addr, msg []byte) {
+	// Do something with message
+	atomic.AddUint64(&ops, 1)
 }

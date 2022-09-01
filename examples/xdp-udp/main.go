@@ -97,6 +97,19 @@ func main() {
 		return
 	}
 
+	xsk2, err := xdp.NewSocket(Ifindex, queueID, &xdp.SocketOptions{
+		NumFrames:              204800,
+		FrameSize:              4096,
+		FillRingNumDescs:       8192,
+		CompletionRingNumDescs: 64,
+		RxRingNumDescs:         8192,
+		TxRingNumDescs:         64,
+	})
+	if err != nil {
+		fmt.Printf("error: failed to create an XDP socket: %v\n", err)
+		return
+	}
+
 	// Register our XDP socket file descriptor with the eBPF program so it can be redirected packets
 	if err := program.Register(queueID, xsk.FD()); err != nil {
 		fmt.Printf("error: failed to register socket in BPF map: %v\n", err)
@@ -114,6 +127,38 @@ func main() {
 		<-c
 		program.Detach(Ifindex)
 		os.Exit(1)
+	}()
+
+	go func() {
+		if n := xsk2.NumFreeFillSlots(); n > 0 {
+			// ...then fetch up to that number of not-in-use
+			// descriptors and push them onto the Fill ring queue
+			// for the kernel to fill them with the received
+			// frames.
+			xsk2.Fill(xsk.GetDescs(n))
+		}
+		// Wait for receive - meaning the kernel has
+		// produced one or more descriptors filled with a received
+		// frame onto the Rx ring queue.
+		// log.Printf("waiting for frame(s) to be received...")
+		numRx, _, err := xsk.Poll(1)
+		if err != nil {
+			fmt.Printf("error: %v\n", err)
+			return
+		}
+
+		if numRx > 0 {
+			// Consume the descriptors filled with received frames
+			// from the Rx ring queue.
+			rxDescs := xsk2.Receive(numRx)
+			// Print the received frames and also modify them
+			// in-place replacing the destination MAC address with
+			// broadcast address.
+			for i := 0; i < len(rxDescs); i++ {
+				pktData := xsk2.GetFrame(rxDescs[i])
+				limits <- pktData
+			}
+		}
 	}()
 
 	for {
