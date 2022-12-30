@@ -9,14 +9,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cody0704/xdp-examples/ebpf/udp"
-
 	"github.com/asavie/xdp"
+	ebpf "github.com/cody0704/xdp-examples/ebpf/udp"
 )
 
 // go:generate echo helloworld
 
-var limits = make(chan []byte, 10000)
+var limits = make(chan []byte)
 var count int
 
 func udpprocess() {
@@ -37,12 +36,14 @@ func main() {
 	var linkName string
 	var queueID int
 	var port int64
+	var multipleReceiver int
 
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	flag.StringVar(&linkName, "linkname", "", "The network link on which rebroadcast should run on.")
 	flag.IntVar(&queueID, "queueid", 0, "The ID of the Rx queue to which to attach to on the network link.")
 	flag.Int64Var(&port, "port", 0, "Port Number")
+	flag.IntVar(&multipleReceiver, "multiple", 1, "Start multiple receivers")
 	flag.Parse()
 
 	interfaces, err := net.Interfaces()
@@ -70,7 +71,7 @@ func main() {
 	}
 
 	// Create a new XDP eBPF program and attach it to our chosen network link.
-	program, err = udp.NewUDPPortProgram(uint32(port), nil)
+	program, err = ebpf.NewUDPPortProgram(uint32(queueID), uint32(port), nil)
 	if err != nil {
 		fmt.Printf("error: failed to create xdp program: %v\n", err)
 		return
@@ -97,19 +98,6 @@ func main() {
 		return
 	}
 
-	xsk2, err := xdp.NewSocket(Ifindex, queueID, &xdp.SocketOptions{
-		NumFrames:              204800,
-		FrameSize:              4096,
-		FillRingNumDescs:       8192,
-		CompletionRingNumDescs: 64,
-		RxRingNumDescs:         8192,
-		TxRingNumDescs:         64,
-	})
-	if err != nil {
-		fmt.Printf("error: failed to create an XDP socket: %v\n", err)
-		return
-	}
-
 	// Register our XDP socket file descriptor with the eBPF program so it can be redirected packets
 	if err := program.Register(queueID, xsk.FD()); err != nil {
 		fmt.Printf("error: failed to register socket in BPF map: %v\n", err)
@@ -117,7 +105,9 @@ func main() {
 	}
 	defer program.Unregister(queueID)
 
-	go udpprocess()
+	for i := 0; i < multipleReceiver; i++ {
+		go udpprocess()
+	}
 
 	log.Println("Start UDP Server: linkname:", linkName, "Port:", port)
 
@@ -127,38 +117,6 @@ func main() {
 		<-c
 		program.Detach(Ifindex)
 		os.Exit(1)
-	}()
-
-	go func() {
-		if n := xsk2.NumFreeFillSlots(); n > 0 {
-			// ...then fetch up to that number of not-in-use
-			// descriptors and push them onto the Fill ring queue
-			// for the kernel to fill them with the received
-			// frames.
-			xsk2.Fill(xsk.GetDescs(n))
-		}
-		// Wait for receive - meaning the kernel has
-		// produced one or more descriptors filled with a received
-		// frame onto the Rx ring queue.
-		// log.Printf("waiting for frame(s) to be received...")
-		numRx, _, err := xsk.Poll(1)
-		if err != nil {
-			fmt.Printf("error: %v\n", err)
-			return
-		}
-
-		if numRx > 0 {
-			// Consume the descriptors filled with received frames
-			// from the Rx ring queue.
-			rxDescs := xsk2.Receive(numRx)
-			// Print the received frames and also modify them
-			// in-place replacing the destination MAC address with
-			// broadcast address.
-			for i := 0; i < len(rxDescs); i++ {
-				pktData := xsk2.GetFrame(rxDescs[i])
-				limits <- pktData
-			}
-		}
 	}()
 
 	for {
@@ -174,7 +132,7 @@ func main() {
 		// produced one or more descriptors filled with a received
 		// frame onto the Rx ring queue.
 		// log.Printf("waiting for frame(s) to be received...")
-		numRx, _, err := xsk.Poll(1)
+		numRx, _, err := xsk.Poll(-1)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return

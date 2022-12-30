@@ -1,2 +1,7 @@
+# IDE
 .vscode
+.vstags
 bin
+
+## Build
+*.o
