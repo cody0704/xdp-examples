@@ -9,14 +9,13 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cody0704/xdp-examples/ebpf/udp"
-
 	"github.com/asavie/xdp"
+	ebpf "github.com/cody0704/xdp-examples/ebpf/udp"
 )
 
 // go:generate echo helloworld
 
-var limits = make(chan []byte, 10000)
+var limits = make(chan []byte)
 var count int
 
 func udpprocess() {
@@ -37,12 +36,14 @@ func main() {
 	var linkName string
 	var queueID int
 	var port int64
+	var multipleReceiver int
 
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	flag.StringVar(&linkName, "linkname", "", "The network link on which rebroadcast should run on.")
 	flag.IntVar(&queueID, "queueid", 0, "The ID of the Rx queue to which to attach to on the network link.")
 	flag.Int64Var(&port, "port", 0, "Port Number")
+	flag.IntVar(&multipleReceiver, "multiple", 1, "Start multiple receivers")
 	flag.Parse()
 
 	interfaces, err := net.Interfaces()
@@ -70,7 +71,7 @@ func main() {
 	}
 
 	// Create a new XDP eBPF program and attach it to our chosen network link.
-	program, err = udp.NewUDPPortProgram(uint32(port), nil)
+	program, err = ebpf.NewUDPPortProgram(uint32(queueID), uint32(port), nil)
 	if err != nil {
 		fmt.Printf("error: failed to create xdp program: %v\n", err)
 		return
@@ -104,7 +105,9 @@ func main() {
 	}
 	defer program.Unregister(queueID)
 
-	go udpprocess()
+	for i := 0; i < multipleReceiver; i++ {
+		go udpprocess()
+	}
 
 	log.Println("Start UDP Server: linkname:", linkName, "Port:", port)
 
@@ -129,7 +132,7 @@ func main() {
 		// produced one or more descriptors filled with a received
 		// frame onto the Rx ring queue.
 		// log.Printf("waiting for frame(s) to be received...")
-		numRx, _, err := xsk.Poll(1)
+		numRx, _, err := xsk.Poll(-1)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return
