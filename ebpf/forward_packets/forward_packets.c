@@ -43,7 +43,7 @@ static __always_inline __u16 ip_checksum(unsigned short *buf, int bufsz)
 
 #define MAX_UDP_LENGTH 1480
 
-__attribute__((__always_inline__)) static inline __u16 caludpcsum(struct iphdr *iph, struct udphdr *udph, void *data_end)
+static __always_inline __u16 caludpcsum(struct iphdr *iph, struct udphdr *udph, void *data_end)
 {
 	__u32 csum_buffer = 0;
 	__u16 *buf = (void *)udph;

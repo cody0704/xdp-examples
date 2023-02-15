@@ -20,7 +20,7 @@ import (
 var limits = make(chan []byte, 100000)
 var xsk *xdp.Socket
 var Ifindex int
-var rxqueueID, txqueueID int
+var queueID int
 var sendCount, recCount int
 
 func radius_handle() {
@@ -89,8 +89,7 @@ func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	flag.StringVar(&linkName, "linkname", "", "The network link on which rebroadcast should run on.")
-	flag.IntVar(&rxqueueID, "", 0, "The ID of the Rx queue to which to attach to on the network link.")
-	flag.IntVar(&txqueueID, "txqueueid", 0, "The ID of the Rx queue to which to attach to on the network link.")
+	flag.IntVar(&queueID, "queueid", 0, "The ID of the Rx queue to which to attach to on the network link.")
 	flag.Int64Var(&port, "port", 0, "Port Number")
 	flag.Parse()
 
@@ -119,7 +118,7 @@ func main() {
 	}
 
 	// Create a new XDP eBPF program and attach it to our chosen network link.
-	program, err = ebpf.NewUDPPortProgram(uint32(port), nil)
+	program, err = ebpf.NewUDPPortProgram(uint32(queueID), uint32(port), nil)
 	if err != nil {
 		fmt.Printf("error: failed to create xdp program: %v\n", err)
 		return
@@ -133,7 +132,7 @@ func main() {
 
 	// Create and initialize an XDP socket attached to our chosen network
 	// link.
-	xsk, err = xdp.NewSocket(Ifindex, rxqueueID, &xdp.SocketOptions{
+	xsk, err = xdp.NewSocket(Ifindex, queueID, &xdp.SocketOptions{
 		NumFrames:              8192,
 		FrameSize:              2048,
 		FillRingNumDescs:       2048,
@@ -147,11 +146,11 @@ func main() {
 	}
 
 	// Register our XDP socket file descriptor with the eBPF program so it can be redirected packets
-	if err := program.Register(rxqueueID, xsk.FD()); err != nil {
+	if err := program.Register(queueID, xsk.FD()); err != nil {
 		fmt.Printf("error: failed to register socket in BPF map: %v\n", err)
 		return
 	}
-	defer program.Unregister(rxqueueID)
+	defer program.Unregister(queueID)
 
 	go radius_handle()
 	go func() {
