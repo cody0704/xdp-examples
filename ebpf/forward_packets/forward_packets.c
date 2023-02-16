@@ -11,9 +11,24 @@
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
-/* Defines xdp_stats_map */
-#include "../common/xdp_stats_kern_user.h"
-#include "../common/xdp_stats_kern.h"
+#define MAX_SERVERS 1
+
+struct dest_info
+{
+	__u32 saddr;
+	__u32 daddr;
+	__u8 smac[6];
+	__u8 dmac[6];
+	__u32 ifindex;
+};
+
+struct bpf_elf_map SEC("maps") servers = {
+		.type = BPF_MAP_TYPE_HASH,
+		.size_key = sizeof(__u32),
+		.size_value = sizeof(struct dest_info),
+		.max_elem = MAX_SERVERS,
+		.pinning = PIN_GLOBAL_NS,
+};
 
 #ifndef memcpy
 #define memcpy(dest, src, n) __builtin_memcpy((dest), (src), (n))
@@ -86,9 +101,12 @@ int xdp_sock_prog(struct xdp_md *ctx)
 	void *data = (void *)(long)ctx->data;
 	void *data_end = (void *)(long)ctx->data_end;
 	int action = XDP_PASS;
+	__u32 key = 0;
 
+	// dest_info
+	struct dest_info *tnl;
 	// interface id number
-	__u16 ifindex = 5;
+	// __u16 ifindex = 5;
 
 	struct ethhdr *eth = data;
 	__u16 h_proto = eth->h_proto;
@@ -116,25 +134,41 @@ int xdp_sock_prog(struct xdp_md *ctx)
 		return XDP_PASS;
 	}
 
+	// Get Forward Obj
+	tnl = bpf_map_lookup_elem(&servers, &key);
+	if (!tnl)
+	{
+		return XDP_DROP;
+	}
+
 	/* allocate a destination using packet hash and map lookup */
 	// 192.168.0.122 = 3232235642
 	// iph->saddr = htonl(3232235642)
 	// 192.168.0.137 = 3232235657
 	// iph->daddr = htonl(3232235657);
 
+	// OK
 	// 192.168.249.50 = 3232299314
-	iph->daddr = htonl(3232299314);
+	// iph->daddr = htonl(3232299314);
 	// 192.168.249.107 = 3232299371
-	iph->saddr = htonl(3232299371);
+	// iph->saddr = htonl(3232299371);
 
-	// iph->daddr = stohi("192.168.249.50");
-	// iph->saddr = stohi("192.168.249.107");
+	// unsigned char src[ETH_ALEN] = {0x82, 0x81, 0x76, 0x6a, 0x09, 0x90};
+	// unsigned char dst[ETH_ALEN] = {0x8e, 0xd2, 0xcd, 0x8c, 0x57, 0x12};
+	// memcpy(eth->h_source, src, ETH_ALEN);
+	// memcpy(eth->h_dest, dst, ETH_ALEN);
+	// END
 
-	unsigned char src[ETH_ALEN] = {0x82, 0x81, 0x76, 0x6a, 0x09, 0x90};
-	unsigned char dst[ETH_ALEN] = {0x8e, 0xd2, 0xcd, 0x8c, 0x57, 0x12};
-	memcpy(eth->h_source, src, ETH_ALEN);
-	memcpy(eth->h_dest, dst, ETH_ALEN);
+	// Call Info
+	iph->saddr = tnl->saddr;
+	iph->daddr = tnl->daddr;
+	memcpy(eth->h_source, tnl->smac, ETH_ALEN);
+	memcpy(eth->h_dest, tnl->dmac, ETH_ALEN);
 
+	bpf_printk("1.redirect sip %d", iph->daddr);
+	bpf_printk("2.redirect dip %d", iph->saddr);
+	bpf_printk("3.redirect mac %d %d %d", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2]);
+	bpf_printk("4.redirect mac %d %d %d", eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
 	// iph->id = iph->id + 1;
 
 	iph->check = 0;
@@ -143,10 +177,11 @@ int xdp_sock_prog(struct xdp_md *ctx)
 	udp->check = 0;
 	udp->check = caludpcsum(iph, udp, data_end);
 
-	action = bpf_redirect(ifindex, 0);
+	// action = bpf_redirect(ifindex, 0);
+	action = bpf_redirect(tnl->ifindex, 0);
 
 out:
-	return xdp_stats_record_action(ctx, action);
+	return action;
 }
 
 // Basic license just for compiling the object code

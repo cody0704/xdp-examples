@@ -54,3 +54,13 @@ nc -lu 192.168.249.50 7999
 ```
 nc -u 127.0.0.1 7999
 ```
+
+## XDP Print
+
+```bash
+cat /sys/kernel/debug/tracing/trace_pipe
+```
+
+## Ref
+
+1. https://github.com/zhao-kun/xdp-redirect
