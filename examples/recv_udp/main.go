@@ -10,7 +10,7 @@ import (
 	"syscall"
 
 	"github.com/asavie/xdp"
-	ebpf "github.com/cody0704/xdp-examples/ebpf/xdp_sock"
+	ebpf "github.com/cody0704/xdp-examples/examples/recv_udp/xdp_sock"
 )
 
 // go:generate echo helloworld

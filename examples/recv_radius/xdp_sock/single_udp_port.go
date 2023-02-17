@@ -1,4 +1,4 @@
-package udp
+package xdp_sock
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 
 // go generate requires appropriate linux headers in included (-I) paths.
 // See accompanying Makefile + Dockerfile to make updates.
-//go:generate /root/go/bin/bpf2go ipproto single_udp_port.c -- -I/usr/include/ -I../include -nostdinc -O3
+//go:generate /root/go/bin/bpf2go ipproto single_udp_port.c -- -I/usr/include/ -nostdinc -O3
 
 // NewIPProtoProgram returns an new eBPF that directs packets of the given ip protocol to to XDP sockets
 func NewUDPPortProgram(index, dest uint32, options *ebpf.CollectionOptions) (*xdp.Program, error) {

@@ -55,7 +55,8 @@ func main() {
 	copy(lb.Dmac[:], dmac)
 
 	var i uint32 = 0
-	err = serversMap.Update(i, lb, ebpf.UpdateAny)
+	err = serversMap.Put(i, lb)
+	// err = serversMap.Update(i, lb, ebpf.UpdateAny)
 	if err != nil {
 		log.Panic(errors.Wrapf(err, "update key %d , value %+v", 0, lb).Error())
 	}

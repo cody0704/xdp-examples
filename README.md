@@ -2,12 +2,14 @@
 
 ## Examples
 
-- [x] - Change Port
-- [x] - RoundRobin Port Allocation
+- [x] - [Change Port](https://github.com/cody0704/xdp-examples/tree/master/examples/change_port)
+- [x] - [RoundRobin Port Allocation](https://github.com/cody0704/xdp-examples/tree/master/examples/port_roundrobin)
 - [ ] - Redirect CPU
 - [ ] - Round Robin CPU Allocation
-- [x] - Forward Packet
-- [x] - AF_XDP
+- [x] - [Forward Packets](https://github.com/cody0704/xdp-examples/tree/master/examples/forward_packets)
+- [x] - [Receive udp using AF_XDP](https://github.com/cody0704/xdp-examples/tree/master/examples/recv_udp)
+- [x] - [Receive radius using AF_XDP](https://github.com/cody0704/xdp-examples/tree/master/examples/recv_radius)
+- [ ] - Send Packet using AF_XDP
 
 ## Install
 
@@ -49,8 +51,3 @@ ens19: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 `xdp` qdisc fq_codel state UP 
 - Native
 - Offload
 - Generic
-
-## Examples
-
-- [xdp sock](https://github.com/cody0704/xdp-examples/tree/master/ebpf/xdp_sock)
-- [change port](https://github.com/cody0704/xdp-examples/tree/master/ebpf/change_port)

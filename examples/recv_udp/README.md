@@ -7,11 +7,15 @@ Receive UDP directly via XDP
 ### Build
 
 ```bash
-cd <project>/ebpf/udp
+cd xdp_sock
 go generate
 ```
 
 ### Run
+
+```
+[Sender](UDP Packet)---->(port: 6000)[XDP]---->[AF_XDP with Go]
+```
 
 - Server
 

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/asavie/xdp"
-	ebpf "github.com/cody0704/xdp-examples/ebpf/xdp_sock"
+	ebpf "github.com/cody0704/xdp-examples/examples/recv_radius/xdp_sock"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"layeh.com/radius"

@@ -165,8 +165,8 @@ int xdp_sock_prog(struct xdp_md *ctx)
 	memcpy(eth->h_source, tnl->smac, ETH_ALEN);
 	memcpy(eth->h_dest, tnl->dmac, ETH_ALEN);
 
-	bpf_printk("1.redirect sip %d", iph->daddr);
-	bpf_printk("2.redirect dip %d", iph->saddr);
+	bpf_printk("1.redirect sip %d", iph->saddr);
+	bpf_printk("2.redirect dip %d", iph->daddr);
 	bpf_printk("3.redirect mac %d %d %d", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2]);
 	bpf_printk("4.redirect mac %d %d %d", eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
 	// iph->id = iph->id + 1;
