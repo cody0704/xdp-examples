@@ -55,19 +55,25 @@ PVE Node
 2. [XDP_Recv]192.168.249.107:1234 --> [UDP_Recv]192.168.249.50:7999
 ```
 
-- VM2/XDP
+1. VM2/XDP
 
 ```bash
 ip link set dev lo xdpgeneric obj forward_packets.o sec xdp
 ```
 
-- VM1/Receiver
+2. VM1/Receiver
 
 ```bash
 nc -lu 192.168.249.50 7999
 ```
 
-- VM2/Sender
+3. Add or Update redirect rule
+
+```bash
+go run main.go --saddr 192.168.249.107 --smac 82:81:76:6a:09:90 --daddr 192.168.249.50 --dmac 8e:d2:cd:8c:57:12
+```
+
+4. VM2/Sender
 
 ```
 nc -u 127.0.0.1 7999

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"log"
 	"net"
 
@@ -18,7 +19,20 @@ type RedirectMetaMap struct {
 	IfIndex    uint32
 }
 
+var (
+	saddr string
+	daddr string
+	smac  string
+	dmac  string
+)
+
 func main() {
+	flag.StringVar(&saddr, "saddr", "", "--saddr 192.168.0.1")
+	flag.StringVar(&daddr, "daddr", "", "--daddr 192.168.0.2")
+	flag.StringVar(&smac, "smac", "", "--smac 12:23:34:45:56:67")
+	flag.StringVar(&dmac, "dmac", "", "--dmac 22:33:44:55:66:77")
+	flag.Parse()
+
 	var mapName string = "servers"
 	path := bpf.MapPath(mapName)
 	serversMap, err := ebpf.LoadPinnedMap(path, nil)
@@ -30,29 +44,25 @@ func main() {
 		log.Panic(errors.New("load pinned map from userspace before you use"))
 	}
 
-	saddr := InetAton("192.168.249.107")
-	daddr := InetAton("192.168.249.50")
-	log.Println("SIP", saddr)
-	log.Println("DIP", daddr)
+	u32saddr := InetAton(saddr)
+	u32daddr := InetAton(daddr)
 	var lb RedirectMetaMap = RedirectMetaMap{
-		SourceAddr: saddr,
-		DestAddr:   daddr,
+		SourceAddr: u32saddr,
+		DestAddr:   u32daddr,
 		IfIndex:    5,
 	}
 
-	sendMac := "82:81:76:6a:09:90"
-	smac, err := net.ParseMAC(sendMac)
+	u8smac, err := net.ParseMAC(smac)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "Invalid mac %s address, convert error", sendMac).Error())
+		log.Panic(errors.Wrapf(err, "Invalid mac %s address, convert error", smac).Error())
 	}
-	copy(lb.Smac[:], smac)
+	copy(lb.Smac[:], u8smac)
 
-	recvMac := "8e:d2:cd:8c:57:12"
-	dmac, err := net.ParseMAC(recvMac)
+	u8dmac, err := net.ParseMAC(dmac)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "Invalid mac %s address, convert error", recvMac).Error())
+		log.Panic(errors.Wrapf(err, "Invalid mac %s address, convert error", dmac).Error())
 	}
-	copy(lb.Dmac[:], dmac)
+	copy(lb.Dmac[:], u8dmac)
 
 	var i uint32 = 0
 	err = serversMap.Put(i, lb)
