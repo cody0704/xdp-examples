@@ -1,13 +1,13 @@
 // +build ignore
 
 #include <linux/bpf.h>
-// #include <linux/in.h>
+#include <linux/in.h>
 #include <linux/udp.h>
 #include <linux/if_ether.h>
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 
-#include <arpa/inet.h>
+// #include <arpa/inet.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
@@ -165,10 +165,13 @@ int xdp_sock_prog(struct xdp_md *ctx)
 	memcpy(eth->h_source, tnl->smac, ETH_ALEN);
 	memcpy(eth->h_dest, tnl->dmac, ETH_ALEN);
 
-	bpf_printk("1.redirect sip %d", iph->saddr);
-	bpf_printk("2.redirect dip %d", iph->daddr);
-	bpf_printk("3.redirect mac %d %d %d", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2]);
-	bpf_printk("4.redirect mac %d %d %d", eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
+	bpf_printk("0.redirect interface %d\n", tnl->ifindex);
+	bpf_printk("1.redirect sip %llu\n", iph->saddr);
+	bpf_printk("2.redirect mac %lx:%lx:%lx\n", eth->h_source[0], eth->h_source[1], eth->h_source[2]);
+	bpf_printk("3.redirect mac %lx:%lx:%lx\n", eth->h_source[3], eth->h_source[4], eth->h_source[5]);
+	bpf_printk("4.redirect dip %llu\n", iph->daddr);
+	bpf_printk("5.redirect mac %lx:%lx:%lx\n", eth->h_dest[0], eth->h_dest[1], eth->h_dest[2]);
+	bpf_printk("6.redirect mac %lx:%lx:%lx\n\n", eth->h_dest[3], eth->h_dest[4], eth->h_dest[5]);
 	// iph->id = iph->id + 1;
 
 	iph->check = 0;
