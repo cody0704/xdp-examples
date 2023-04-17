@@ -12,6 +12,7 @@
 #define MAX_SOCKS 64
 
 static volatile unsigned const short PORT;
+static volatile unsigned const short PORT = 7999;
 
 // Ensure map references are available.
 /*

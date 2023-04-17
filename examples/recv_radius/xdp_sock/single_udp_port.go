@@ -12,16 +12,13 @@ import (
 //go:generate /root/go/bin/bpf2go ipproto single_udp_port.c -- -I/usr/include/ -nostdinc -O3
 
 // NewIPProtoProgram returns an new eBPF that directs packets of the given ip protocol to to XDP sockets
-func NewUDPPortProgram(index, dest uint32, options *ebpf.CollectionOptions) (*xdp.Program, error) {
+func NewUDPPortProgram(dest uint32, options *ebpf.CollectionOptions) (*xdp.Program, error) {
 	spec, err := loadIpproto()
 	if err != nil {
 		return nil, err
 	}
 
-	if dest > 0 && dest <= 65535 && index >= 0 {
-		if err := spec.RewriteConstants(map[string]interface{}{"INDEX": uint16(index)}); err != nil {
-			return nil, err
-		}
+	if dest > 0 && dest <= 65535 {
 		if err := spec.RewriteConstants(map[string]interface{}{"PORT": uint16(dest)}); err != nil {
 			return nil, err
 		}

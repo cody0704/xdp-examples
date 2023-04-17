@@ -9,10 +9,10 @@ Directly change UDP receiving port via XDP
 ```bash
 # Redhat 9
 # pwd: <project>/ebpf/udp
-clang -O3 -g -Wall -target bpf -c <filename>.c -o <filename>.o -I/usr/include/ -I../include/ -I/usr/lib64/clang/14.0.6/include
+clang -O3 -g -Wall -target bpf -c <filename>.c -o <filename>.o -I/usr/include/ -I../../include/ -I/usr/lib64/clang/14.0.6/include
 
 # Ubuntu 20.04
-clang -O3 -g -Wall -target bpf -c change_port.c -o change_port.o -I/usr/include/ -I../include/
+clang -O3 -g -Wall -target bpf -c change_port.c -o change_port.o -I/usr/include/ -I../../include/
 ```
 
 ### Attach

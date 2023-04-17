@@ -11,6 +11,8 @@ import (
 	"github.com/pkg/errors"
 )
 
+//go:generate clang -O3 -g -Wall -target bpf -c forward_packets.c -o forward_packets.o -I/usr/include/ -I../../include/
+
 type RedirectMetaMap struct {
 	SourceAddr uint32
 	DestAddr   uint32
@@ -20,10 +22,11 @@ type RedirectMetaMap struct {
 }
 
 var (
-	saddr string
-	daddr string
-	smac  string
-	dmac  string
+	saddr  string
+	daddr  string
+	smac   string
+	dmac   string
+	egress int
 )
 
 func main() {
@@ -31,6 +34,7 @@ func main() {
 	flag.StringVar(&daddr, "daddr", "", "--daddr 192.168.0.2")
 	flag.StringVar(&smac, "smac", "", "--smac 12:23:34:45:56:67")
 	flag.StringVar(&dmac, "dmac", "", "--dmac 22:33:44:55:66:77")
+	flag.IntVar(&egress, "egress", 1, "--egress 1")
 	flag.Parse()
 
 	var mapName string = "servers"
@@ -49,7 +53,7 @@ func main() {
 	var lb RedirectMetaMap = RedirectMetaMap{
 		SourceAddr: u32saddr,
 		DestAddr:   u32daddr,
-		IfIndex:    5,
+		IfIndex:    uint32(egress),
 	}
 
 	u8smac, err := net.ParseMAC(smac)

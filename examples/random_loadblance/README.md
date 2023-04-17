@@ -9,23 +9,23 @@ Round-Robin Port Allocation
 ```bash
 # Redhat 9
 # pwd: <project>/ebpf/udp
-clang -O3 -g -Wall -target bpf -c <filename>.c -o <filename>.o -I/usr/include/ -I../../include/ -I/usr/lib64/clang/14.0.6/include
+clang -O3 -g -Wall -target bpf -c <filename>.c -o <filename>.o -I/usr/include/ -I../include/ -I/usr/lib64/clang/14.0.6/include
 
 # Ubuntu 20.04
-clang -O3 -g -Wall -target bpf -c roundrobin_port.c -o roundrobin_port.o -I/usr/include/ -I../../include/
+clang -O3 -g -Wall -target bpf -c random_loadblance.c -o random_loadblance.o -I/usr/include/ -I../include/
 ```
 
 ### Attach
 
 ```bash
 # generic mode
-ip link set dev lo xdpgeneric obj roundrobin_port.o sec xdp
+ip link set dev lo xdpgeneric obj random_loadblance.o sec xdp
 # deattch
 ip link set dev lo xdpgeneric off
 
 # interface needs to support
 # native mode
-ip link set dev <interfaceNane> xdp obj roundrobin_port.o sec xdp
+ip link set dev <interfaceNane> xdp obj random_loadblance.o sec xdp
 # deattch
 ip link set dev <interfaceNane> xdp off
 ```

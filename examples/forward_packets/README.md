@@ -1,4 +1,4 @@
-## Forward Packets
+## Proxy
 
 Forwarding packets via XDP Redirect
 
@@ -13,7 +13,7 @@ Forwarding packets via XDP Redirect
 ```bash
 # Ubuntu 20.04
 # pwd: <project>/ebpf/udp
-clang -O3 -g -Wall -target bpf -c forward_packets.c -o forward_packets.o -I/usr/include/ -I../include/
+clang -O3 -g -Wall -target bpf -c forward_packets.c -o forward_packets.o -I/usr/include/ -I../../include/
 ```
 
 ### Attach
@@ -33,67 +33,53 @@ ip link set dev <interfaceNane> xdp off
 
 ### Test
 
+> Notice: hw tx offload needs to be disabled
+
 - lab env
 
 ```
-PVE Node
-----------------------------------------------------------------
-| VM1                           VM2                            |
-| --------------------------        -------------------------- |
-| |  [vmbr5]eth1 (MAC=X1)  |<-------|  [vmbr5]eth1 (MAC=X2)  | |
-| --------------------------        -------------------------- |
-----------------------------------------------------------------
+VM1/UDP_Sender           VM2/XDP_Forward
+-----------------        -------------------
+|eth1:172.18.1.1|------->|eth1:172.18.1.254|        VM3/UDP_Receiver
+-----------------        -------------------        --------------------
+                         |      eth2       |------->|eth2:192.168.1.254|
+                         -------------------        --------------------
 ```
 
 - packet flow
 
 ```
-1. [UDP_Send]127.0.0.1:1234 --> [XDP_Recv]127.0.0.1:7999
+1. [VM1:eth1]172.18.1.1:31612 --> [VM2:eth1]172.18.1.254:7999
 
-                       ⇩ (Modify it to the following direction through XDP)
+                          ⇩ (Modify it to the following direction through XDP)
 
-2. [XDP_Recv]192.168.249.107:1234 --> [UDP_Recv]192.168.249.50:7999
+2. [VM2:eth2]172.18.1.254:31612 --> [VM3:eth2]192.168.1.254:7999
 ```
 
-1. VM2/XDP
+1. VM2/XDP_Forward
 
 ```bash
-ip link set dev lo xdpgeneric obj forward_packets.o sec xdp
+ip link set dev eth1 xdpgeneric obj forward_packets.o sec xdp
 ```
 
-2. VM1/Receiver
+2. Add or Update redirect rules
 
 ```bash
-nc -lu 192.168.249.50 7999
+# go run forward_packets.go --saddr <SIP> --smac <SMAC> --daddr <DIP> --dmac <DMAC> --egress <IFID>
+go run forward_packets.go --saddr 172.18.1.1 --smac 82:81:76:6a:09:90 --daddr 192.168.1.254 --dmac 8e:d2:cd:8c:57:12 --egress 3
 ```
 
-3. Add or Update redirect rule
+3. VM3/Receiver
 
 ```bash
-go run main.go --saddr 192.168.249.107 --smac 82:81:76:6a:09:90 --daddr 192.168.249.50 --dmac 8e:d2:cd:8c:57:12
+nc -lu 192.168.1.254 7999
 ```
 
-4. VM2/Sender
+4. VM1/Sender
 
 ```
-nc -u 127.0.0.1 7999
+nc -u 172.18.1.254 7999
 ```
-
-## XDP Print
-
-```bash
-cat /sys/kernel/debug/tracing/trace_pipe
-```
-
-## XDP Struct and golang Struct size
-
-If you execute main.go and see the following warning
-
-```
-can't marshal value: main.RedirectMetaMap doesn't marshal to 24 bytes
-```
-
-You must have modified the structure in xdp prog, please refer to the [article](https://www.geeksforgeeks.org/is-sizeof-for-a-struct-equal-to-the-sum-of-sizeof-of-each-member/)
 
 ## Ref
 

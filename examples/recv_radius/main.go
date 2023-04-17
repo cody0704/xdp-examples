@@ -118,7 +118,7 @@ func main() {
 	}
 
 	// Create a new XDP eBPF program and attach it to our chosen network link.
-	program, err = ebpf.NewUDPPortProgram(uint32(queueID), uint32(port), nil)
+	program, err = ebpf.NewUDPPortProgram(uint32(port), nil)
 	if err != nil {
 		fmt.Printf("error: failed to create xdp program: %v\n", err)
 		return

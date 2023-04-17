@@ -7,7 +7,7 @@
 - [ ] - Redirect CPU
 - [ ] - Round Robin CPU Allocation
 - [x] - [Forward Packets](https://github.com/cody0704/xdp-examples/tree/master/examples/forward_packets)
-- [ ] - Proxy
+- [x] - [Network Tap](https://github.com/cody0704/xdp-examples/tree/master/examples/network_tap)
 - [x] - [Receive udp using AF_XDP](https://github.com/cody0704/xdp-examples/tree/master/examples/recv_udp)
 - [x] - [Receive radius using AF_XDP](https://github.com/cody0704/xdp-examples/tree/master/examples/recv_radius)
 - [ ] - Send Packet using AF_XDP
