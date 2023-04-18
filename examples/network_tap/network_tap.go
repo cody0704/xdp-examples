@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-//go:generate clang -O3 -g -Wall -target bpf -c forward_packets.c -o forward_packets.o -I/usr/include/ -I../include/
+//go:generate clang -O3 -g -Wall -target bpf -c network_tap.c -o network_tap.o -I/usr/include/ -I../../include/
 
 var (
 	ingress int

@@ -1,6 +1,7 @@
-## Forward Packets
+## Network Tap
 
-Forwarding packets via XDP Redirect
+Network Tap via XDP Redirect
+
 
 > Notice:
 >
@@ -38,16 +39,16 @@ ip link set dev <interfaceNane> xdp off
 - lab env
 
 ```
-VM1/UDP_Sender           VM2/XDP_Forward
------------------        -------------------
-|eth1:172.18.1.1|------->|eth1:172.18.1.254|        VM3/TCPDUMP(Promiscuous Mode)
------------------        -------------------        --------
-VM4/UDP_Sender       ┌-->|      eth2       |------->| eth2 |
------------------    |   -------------------        --------
-|eth3:172.18.2.1|----┘                            VM5/TCPDUMP(Promiscuous Mode)
------------------        -------------------        --------
-                         |      eth4       |------->| eth4 |
-                         -------------------        --------
+VM1/UDP_Sender           VM2/XDP_Forward             VM3/TCPDUMP(Promiscuous Mode)
+-----------------        -------------------         --------
+|eth1:172.18.1.1|------->|eth1:172.18.1.254|    ┌--->| eth2 |
+-----------------        -------------------    |    --------
+VM4/UDP_Sender       ┌-->|eth2:172.18.2.254|----┘
+-----------------    |   -------------------
+|eth3:172.18.2.1|----┘   |      eth4       |----┐    VM5/TCPDUMP(Promiscuous Mode)
+-----------------        -------------------    |    --------
+                                                └--->| eth4 |
+                                                     --------
 ```
 
 - packet flow
@@ -59,7 +60,7 @@ VM4/UDP_Sender       ┌-->|      eth2       |------->| eth2 |
 3. [VM3]TCPDUMP: 172.18.1.1:31612 --> 172.18.1.254:7999
 
 # Traffic 2
-1. [VM4:eth1]172.18.2.1:31612 --> [VM2:eth3]172.18.2.254:7999
+1. [VM4:eth3]172.18.2.1:31612 --> [VM2:eth2]172.18.2.254:7999
 2. [VM2:eth2] --> [VM5]TCPDUMP
 3. [VM5]TCPDUMP: 172.18.2.1:31612 --> 172.18.2.254:7999
 ```
@@ -67,7 +68,7 @@ VM4/UDP_Sender       ┌-->|      eth2       |------->| eth2 |
 1. VM2/XDP
 
 ```bash
-ip link set dev eth1 xdpgeneric obj forward_packets.o sec xdp
+ip link set dev eth1 xdpgeneric obj network_tap.o sec xdp
 ```
 
 2. VM1/Receiver
