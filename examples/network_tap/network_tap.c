@@ -14,12 +14,11 @@
 
 static unsigned const short PORT = 7999;
 
-struct bpf_elf_map SEC("maps") tx_if = {
+struct bpf_map_def SEC("maps") tx_if = {
 		.type = BPF_MAP_TYPE_DEVMAP,
-		.size_key = sizeof(__u32),
-		.size_value = sizeof(__u32),
-		.max_elem = MAX_INTERFACE,
-		.pinning = PIN_GLOBAL_NS,
+		.key_size = sizeof(__u32),
+		.value_size = sizeof(__u32),
+		.max_entries = MAX_INTERFACE,
 };
 
 SEC("xdp")

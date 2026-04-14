@@ -26,12 +26,11 @@ struct dest_info
 };
 #pragma pack(pop)
 
-struct bpf_elf_map SEC("maps") servers = {
+struct bpf_map_def SEC("maps") servers = {
 		.type = BPF_MAP_TYPE_HASH,
-		.size_key = sizeof(__u32),
-		.size_value = sizeof(struct dest_info),
-		.max_elem = MAX_SERVERS,
-		.pinning = PIN_GLOBAL_NS,
+		.key_size = sizeof(__u32),
+		.value_size = sizeof(struct dest_info),
+		.max_entries = MAX_SERVERS,
 };
 
 #ifndef memcpy

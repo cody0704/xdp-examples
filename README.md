@@ -28,7 +28,7 @@ dnf install clang clang-devel llvm gcc libbpf xdp-tools bpftool kernel-devel ker
 ### Tool
 
 ```bash
-go install github.com/cilium/ebpf/cmd/bpf2go@v0.9.3
+go install github.com/cilium/ebpf/cmd/bpf2go@v0.21.0
 ```
 
 ### Link Correct Directory Name
