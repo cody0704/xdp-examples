@@ -35,7 +35,8 @@ int xdp_sock_prog(struct xdp_md *ctx)
 	if ((void *)udp + sizeof(*udp) > data_end)
 		return XDP_PASS;
 
-	// Only pass matching UDP packets to the kernel network stack.
+	// Pass matching UDP packets to the kernel network stack.
+	// Non-matching packets are also passed through so other traffic is unaffected.
 	if (udp->dest == bpf_htons(PORT))
 		return XDP_PASS;
 
