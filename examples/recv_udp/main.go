@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/asavie/xdp"
+	"github.com/cilium/ebpf/link"
 	ebpf "github.com/cody0704/xdp-examples/examples/recv_udp/xdp_sock"
 )
 
@@ -22,24 +22,17 @@ func udpprocess() {
 		_ = pktData
 		count++
 		log.Println(count)
-		// log.Print(
-		// 	"SrcIP: ", net.IP(pktData[26:30]).String(), ", SrcPort: ", int(pktData[34])*256+int(pktData[35]),
-		// 	", DstIP: ", net.IP(pktData[30:34]).String(), ", DstPort: ", int(pktData[36])*256+int(pktData[37]),
-		// 	", Data: ", string(pktData[42:]),
-		// )
 	}
 }
 
 func main() {
 	var linkName string
-	var queueID int
 	var port int64
 	var multipleReceiver int
 
 	log.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
 
 	flag.StringVar(&linkName, "linkname", "", "The network link on which rebroadcast should run on.")
-	flag.IntVar(&queueID, "queueid", 0, "The ID of the Rx queue to which to attach to on the network link.")
 	flag.Int64Var(&port, "port", 0, "Port Number")
 	flag.IntVar(&multipleReceiver, "multiple", 1, "Start multiple receivers")
 	flag.Parse()
@@ -62,46 +55,37 @@ func main() {
 		return
 	}
 
-	var program *xdp.Program
-
-	if port < 0 || port > 65565 {
-		log.Panic("Out of Port")
+	if port < 1 || port > 65535 {
+		log.Panic("port must be between 1 and 65535")
 	}
 
-	// Create a new XDP eBPF program and attach it to our chosen network link.
-	program, err = ebpf.NewUDPPortProgram(uint32(port), nil)
+	// Load the XDP eBPF program that passes matching UDP packets to the kernel stack.
+	prog, err := ebpf.NewUDPPortProgram(uint32(port), nil)
 	if err != nil {
 		fmt.Printf("error: failed to create xdp program: %v\n", err)
 		return
 	}
-	defer program.Close()
-	if err := program.Attach(Ifindex); err != nil {
+	defer prog.Close()
+
+	// Attach the XDP program to the network interface.
+	l, err := link.AttachXDP(link.XDPOptions{
+		Program:   prog,
+		Interface: Ifindex,
+	})
+	if err != nil {
 		fmt.Printf("error: failed to attach xdp program to interface: %v\n", err)
 		return
 	}
-	defer program.Detach(Ifindex)
+	defer l.Close()
 
-	// Create and initialize an XDP socket attached to our chosen network
-	// link.
-	xsk, err := xdp.NewSocket(Ifindex, queueID, &xdp.SocketOptions{
-		NumFrames:              204800,
-		FrameSize:              4096,
-		FillRingNumDescs:       8192,
-		CompletionRingNumDescs: 64,
-		RxRingNumDescs:         8192,
-		TxRingNumDescs:         64,
-	})
+	// Listen for UDP packets on the specified port.
+	addr := &net.UDPAddr{Port: int(port)}
+	conn, err := net.ListenUDP("udp4", addr)
 	if err != nil {
-		fmt.Printf("error: failed to create an XDP socket: %v\n", err)
+		fmt.Printf("error: failed to listen on UDP port %d: %v\n", port, err)
 		return
 	}
-
-	// Register our XDP socket file descriptor with the eBPF program so it can be redirected packets
-	if err := program.Register(queueID, xsk.FD()); err != nil {
-		fmt.Printf("error: failed to register socket in BPF map: %v\n", err)
-		return
-	}
-	defer program.Unregister(queueID)
+	defer conn.Close()
 
 	for i := 0; i < multipleReceiver; i++ {
 		go udpprocess()
@@ -109,44 +93,26 @@ func main() {
 
 	log.Println("Start UDP Server: linkname:", linkName, "Port:", port)
 
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
 	go func() {
 		<-c
-		program.Detach(Ifindex)
+		l.Close()
+		conn.Close()
 		os.Exit(1)
 	}()
 
+	buf := make([]byte, 65536)
 	for {
-		// If there are any free slots on the Fill queue...
-		if n := xsk.NumFreeFillSlots(); n > 0 {
-			// ...then fetch up to that number of not-in-use
-			// descriptors and push them onto the Fill ring queue
-			// for the kernel to fill them with the received
-			// frames.
-			xsk.Fill(xsk.GetDescs(n))
-		}
-		// Wait for receive - meaning the kernel has
-		// produced one or more descriptors filled with a received
-		// frame onto the Rx ring queue.
-		// log.Printf("waiting for frame(s) to be received...")
-		numRx, _, err := xsk.Poll(-1)
+		n, _, err := conn.ReadFromUDP(buf)
 		if err != nil {
 			fmt.Printf("error: %v\n", err)
 			return
 		}
-
-		if numRx > 0 {
-			// Consume the descriptors filled with received frames
-			// from the Rx ring queue.
-			rxDescs := xsk.Receive(numRx)
-			// Print the received frames and also modify them
-			// in-place replacing the destination MAC address with
-			// broadcast address.
-			for i := 0; i < len(rxDescs); i++ {
-				pktData := xsk.GetFrame(rxDescs[i])
-				limits <- pktData
-			}
+		if n > 0 {
+			payload := make([]byte, n)
+			copy(payload, buf[:n])
+			limits <- payload
 		}
 	}
 }

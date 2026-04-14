@@ -6,10 +6,10 @@ import (
 	"log"
 	"net"
 
-	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 )
+
+const bpfGlobalsPath = "/sys/fs/bpf/tc/globals/"
 
 //go:generate clang -O3 -g -Wall -target bpf -c forward_packets.c -o forward_packets.o -I/usr/include/ -I../../include/
 
@@ -38,14 +38,14 @@ func main() {
 	flag.Parse()
 
 	var mapName string = "servers"
-	path := bpf.MapPath(mapName)
+	path := bpfGlobalsPath + mapName
 	serversMap, err := ebpf.LoadPinnedMap(path, nil)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "Load pinned map %s", path))
+		log.Panicf("Load pinned map %s: %v", path, err)
 	}
 
 	if serversMap == nil {
-		log.Panic(errors.New("load pinned map from userspace before you use"))
+		log.Panic("load pinned map from userspace before you use")
 	}
 
 	u32saddr := InetAton(saddr)
@@ -58,13 +58,13 @@ func main() {
 
 	u8smac, err := net.ParseMAC(smac)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "Invalid mac %s address, convert error", smac).Error())
+		log.Panicf("Invalid mac %s address, convert error: %v", smac, err)
 	}
 	copy(lb.Smac[:], u8smac)
 
 	u8dmac, err := net.ParseMAC(dmac)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "Invalid mac %s address, convert error", dmac).Error())
+		log.Panicf("Invalid mac %s address, convert error: %v", dmac, err)
 	}
 	copy(lb.Dmac[:], u8dmac)
 
@@ -72,7 +72,7 @@ func main() {
 	err = serversMap.Put(i, lb)
 	// err = serversMap.Update(i, lb, ebpf.UpdateAny)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "update key %d , value %+v", 0, lb).Error())
+		log.Panicf("update key %d , value %+v: %v", 0, lb, err)
 	}
 }
 

@@ -6,10 +6,10 @@ import (
 	"log"
 	"net"
 
-	"github.com/cilium/cilium/pkg/bpf"
 	"github.com/cilium/ebpf"
-	"github.com/pkg/errors"
 )
+
+const bpfGlobalsPath = "/sys/fs/bpf/tc/globals/"
 
 //go:generate clang -O3 -g -Wall -target bpf -c network_tap.c -o network_tap.o -I/usr/include/ -I../../include/
 
@@ -24,14 +24,14 @@ func main() {
 	flag.Parse()
 
 	var mapName string = "tx_if"
-	path := bpf.MapPath(mapName)
+	path := bpfGlobalsPath + mapName
 	serversMap, err := ebpf.LoadPinnedMap(path, nil)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "Load pinned map %s", path))
+		log.Panicf("Load pinned map %s: %v", path, err)
 	}
 
 	if serversMap == nil {
-		log.Panic(errors.New("load pinned map from userspace before you use"))
+		log.Panic("load pinned map from userspace before you use")
 	}
 
 	var u32ingress = uint32(ingress)
@@ -40,7 +40,7 @@ func main() {
 	err = serversMap.Put(u32ingress, u32egress)
 	// err = serversMap.Update(u32ingress, u32egress, ebpf.UpdateAny)
 	if err != nil {
-		log.Panic(errors.Wrapf(err, "update ingress %d , egress %d", u32ingress, u32egress).Error())
+		log.Panicf("update ingress %d , egress %d: %v", u32ingress, u32egress, err)
 	}
 }
 
